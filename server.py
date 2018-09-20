@@ -10,20 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_http_handler_class(response_text='', output_content=True, content_out_dir='./out', max_log_content=100,
-                           max_out_content=10485760):
+                           max_out_content=10485760, server_url='server'):
     handler_logger = logging.getLogger('requests')
 
     class HttpHandler(BaseHTTPRequestHandler):
-        # def __getattr__(self, item):
-        #     if item.startswith('do_'):
-        #         method = item[3:]
-        #
-        #         def f():
-        #             return self._handle_do_request(method)
-        #
-        #         return f
-        #     return None
-
         def do_GET(self):
             return self._handle_do_request('GET')
 
@@ -78,8 +68,8 @@ def get_http_handler_class(response_text='', output_content=True, content_out_di
                     logger.error('Error saving HTTP request content to filepath: %s', filepath, exc_info=True)
 
             # log
-            handler_logger.info("%s %s %s %s" % (method, self.path,
-                                                 urlencode(self.headers), urlencode(params)))
+            handler_logger.info("%s %s %s %s %s %s %s" % (self.client_address[0], self.client_address[1], server_url,
+                                                          method, self.path, urlencode(self.headers), urlencode(params)))
 
             # response
             self.send_response(200)
@@ -90,20 +80,34 @@ def get_http_handler_class(response_text='', output_content=True, content_out_di
     return HttpHandler
 
 
-def run(server_class=HTTPServer, port=8443):
-    server_address = ('', port)
-    httpd = server_class(server_address, get_http_handler_class())
-    httpd.socket = ssl.wrap_socket(httpd.socket, certfile='./server.pem', server_side=True)
-    logger.info('Starting httpd...\n')
+def run(args):
+    server_class = HTTPServer
+    url = 'http%s://127.0.0.1:%d' % ('s' if args.ssl else '', args.port)
+    server_url = 'http%s://0.0.0.0:%d' % ('s' if args.ssl else '', args.port)
+
+    handler_class = get_http_handler_class(response_text=args.response_text,
+                                           output_content=args.output_content,
+                                           content_out_dir=args.out_dir,
+                                           max_log_content=args.max_loggable_content_size,
+                                           max_out_content=args.max_out_content_size,
+                                           server_url=server_url
+                                           )
+    server_address = ('', args.port)
+    httpd = server_class(server_address, handler_class)
+    if args.ssl:
+        httpd.socket = ssl.wrap_socket(httpd.socket, certfile=args.ssl_cert, server_side=True)
+    logger.info('Starting httpd %s...', url)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print('KeyboardInterrupt')
     finally:
         httpd.server_close()
-        logger.info('Stopping httpd...\n')
+        logger.info('Stopping httpd...')
 
-def configure_logging(filepath):
+
+def configure_logging(args):
+    filepath = os.path.join(args.log_dir, args.log_filename)
     import logging.config
     config_dict = {
         'version': 1,
@@ -119,8 +123,8 @@ def configure_logging(filepath):
                 'formatter': 'file_formatter',
                 'filename': filepath,
                 'mode': 'a',
-                'maxBytes': 10485760,
-                'backupCount': 5}
+                'maxBytes': args.log_file_max_bytes,
+                'backupCount': args.log_file_backup_count}
         },
         'formatters': {
             'file_formatter': {
@@ -129,52 +133,49 @@ def configure_logging(filepath):
             }
         },
         'loggers': {
-            '': {'level': 'WARNING', 'handlers': ['console_handler', 'file_handler']},
+            '': {'level': 'WARNING', 'handlers': ['console_handler']},
             '__main__': {'level': 'DEBUG'},
-            'requests': {'level': 'INFO'}
+            'requests': {'level': 'INFO', 'handlers': ['console_handler', 'file_handler']}
         }
     }
     logging.config.dictConfig(config_dict)
 
+
 def parse_args():
     import argparse
-    # parser = argparse.ArgumentParser()
-    #
-    # parser.add_argument('-s', action='store', dest='simple_value',
-    #                     help='Store a simple value')
-    #
-    # parser.add_argument('-c', action='store_const', dest='constant_value',
-    #                     const='value-to-store',
-    #                     help='Store a constant value')
-    #
-    # parser.add_argument('-t', action='store_true', default=False,
-    #                     dest='boolean_switch',
-    #                     help='Set a switch to true')
-    # parser.add_argument('-f', action='store_false', default=False,
-    #                     dest='boolean_switch',
-    #                     help='Set a switch to false')
-    #
-    # parser.add_argument('-a', action='append', dest='collection',
-    #                     default=[],
-    #                     help='Add repeated values to a list',
-    #                     )
-    #
-    # parser.add_argument('-A', action='append_const', dest='const_collection',
-    #                     const='value-1-to-append',
-    #                     default=[],
-    #                     help='Add different values to list')
-    # parser.add_argument('-B', action='append_const', dest='const_collection',
-    #                     const='value-2-to-append',
-    #                     help='Add different values to list')
-    # args = parser.parse_args()
-    return
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-p', '--port', action='store', type=int, default=None, help='server port')
+    # parser.add_argument('-b', '--bind-address', action='store', default='', help='server bind address')
+    parser.add_argument('-c', '--ssl-cert', action='store', default='./server.pem', help='SSL Certificate')
+    parser.add_argument('-s', '--ssl', action='store_true', help='use HTTPS instead of HTTP')
+    parser.add_argument('-L', '--log-dir', action='store', default='./logs', help="Log file dir")
+    parser.add_argument('-O', '--out-dir', action='store', default='./out', help="Requests content output destination")
+    parser.add_argument('--log-filename', action='store', default=None, help="Log file name")
+    parser.add_argument('--do-not-output-content', dest="output_content", action='store_false', help="Do not output requests content")
+    parser.add_argument('--max-loggable-content-size', action='store', type=int, default=100, help="Maximum loggable content in size")
+    parser.add_argument('--max-out-content-size', action='store', type=int, default=10485760, help="Maximum output content in size")
+    parser.add_argument('--response-text', action='store', default='')
+    parser.add_argument('--log-file-max-bytes', action='store', type=int, default=10485760)
+    parser.add_argument('--log-file-backup-count', action='store', type=int, default=5)
+
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
     # os.makedirs('./logs')
     # os.makedirs('./out')
 
     args = parse_args()
-    configure_logging('logs/requests.log')
-    run()
+    if not os.path.exists(args.log_dir):
+        os.makedirs(args.log_dir)
+    if args.output_content and not os.path.exists(args.out_dir):
+        os.makedirs(args.out_dir)
+    if args.port is None:
+        args.port = 8443 if args.ssl else 8080
+    if args.log_filename is None:
+        args.log_filename = 'requests_%s_%d.log' % ('https' if args.ssl else 'http', args.port)
+    configure_logging(args)
+    run(args)
 
 
