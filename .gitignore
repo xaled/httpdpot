@@ -1,3 +1,13 @@
+# Project specific
+/*.crt
+/*.csr
+/*.key
+/*.pem
+/logs
+/out
+/.idea
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
