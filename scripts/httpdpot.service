@@ -1,0 +1,12 @@
+[Unit]
+Description=httpdot honeypot (https://github.com/xaled/httpdpot)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/httpdpot/scripts/httpdpot-start.sh
+ExecStop=/opt/httpdpot/scripts/httpdpot-stop.sh
+
+[Install]
+WantedBy=multi-user.target
