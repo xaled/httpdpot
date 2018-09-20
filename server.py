@@ -81,26 +81,29 @@ def get_http_handler_class(response_text='', output_content=True, content_out_di
 
 
 def run(args):
-    server_class = HTTPServer
-    url = 'http%s://127.0.0.1:%d' % ('s' if args.ssl else '', args.port)
-    server_url = 'http%s://0.0.0.0:%d' % ('s' if args.ssl else '', args.port)
 
-    handler_class = get_http_handler_class(response_text=args.response_text,
-                                           output_content=args.output_content,
-                                           content_out_dir=args.out_dir,
-                                           max_log_content=args.max_loggable_content_size,
-                                           max_out_content=args.max_out_content_size,
-                                           server_url=server_url
-                                           )
-    server_address = ('', args.port)
-    httpd = server_class(server_address, handler_class)
-    if args.ssl:
-        httpd.socket = ssl.wrap_socket(httpd.socket, certfile=args.ssl_cert, server_side=True)
-    logger.info('Starting httpd %s...', url)
     try:
+        server_class = HTTPServer
+        url = 'http%s://127.0.0.1:%d' % ('s' if args.ssl else '', args.port)
+        server_url = 'http%s://0.0.0.0:%d' % ('s' if args.ssl else '', args.port)
+
+        handler_class = get_http_handler_class(response_text=args.response_text,
+                                               output_content=args.output_content,
+                                               content_out_dir=args.out_dir,
+                                               max_log_content=args.max_loggable_content_size,
+                                               max_out_content=args.max_out_content_size,
+                                               server_url=server_url
+                                               )
+        server_address = ('', args.port)
+        httpd = server_class(server_address, handler_class)
+        if args.ssl:
+            httpd.socket = ssl.wrap_socket(httpd.socket, certfile=args.ssl_cert, server_side=True)
+        logger.info('Starting httpd %s...', url)
         httpd.serve_forever()
     except KeyboardInterrupt:
         print('KeyboardInterrupt')
+    except Exception as e:
+        print("Could not start server...")
     finally:
         httpd.server_close()
         logger.info('Stopping httpd...')
