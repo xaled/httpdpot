@@ -1,5 +1,5 @@
 [Unit]
-Description=Darknet Splunk
+Description=httpdpot Splunk
 After=network.target
 Wants=network.target
 
