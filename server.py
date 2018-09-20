@@ -81,7 +81,7 @@ def get_http_handler_class(response_text='', output_content=True, content_out_di
 
 
 def run(args):
-
+    httpd = None
     try:
         server_class = HTTPServer
         url = 'http%s://127.0.0.1:%d' % ('s' if args.ssl else '', args.port)
@@ -102,10 +102,11 @@ def run(args):
         httpd.serve_forever()
     except KeyboardInterrupt:
         print('KeyboardInterrupt')
-    except Exception as e:
-        print("Could not start server...")
+    except :
+        logger.error("Could not start server...", exc_info=True)
     finally:
-        httpd.server_close()
+        if httpd is not None:
+            httpd.server_close()
         logger.info('Stopping httpd...')
 
 

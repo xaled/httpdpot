@@ -5,8 +5,9 @@ Wants=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/httpdpot/scripts/httpdpot-start.sh
-ExecStop=/opt/httpdpot/scripts/httpdpot-stop.sh
+ExecStart=/bin/bash /opt/httpdpot/scripts/httpdpot-start.sh
+ExecStop=/bin/bash /opt/httpdpot/scripts/httpdpot-stop.sh
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
